@@ -1,18 +1,18 @@
-import json
-import os
-import io
-import requests
-import logging
 import hashlib
-import psutil
-import arrow
-import nacl.bindings
-from jose import jwk
-from jose.utils import base64url_encode, base64url_decode, base64
-from jose.backends.cryptography_backend import CryptographyRSAKey
+import io
+import json
+import logging
+import os
+
+import requests
+from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from Crypto.Signature import PKCS1_PSS
-from Crypto.Hash import SHA256
+from jose import jwk
+from jose.utils import base64url_encode
+
+from .deep_hash import deep_hash
+from .merkle import compute_root_hash, generate_transaction_chunks
 from .utils import (
     winston_to_ar,
     ar_to_winston,
@@ -22,8 +22,6 @@ from .utils import (
     decode_tag,
     base64url_decode
 )
-from .deep_hash import deep_hash
-from .merkle import compute_root_hash, generate_transaction_chunks
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +36,10 @@ class ArweaveTransactionException(Exception):
 class Wallet(object):
     HASH = 'sha256'
 
+    def __init__(self, addr=None):
+        self.address = addr
+        self.api_url = API_URL
+
     def _set_jwk_params(self):
         self.jwk_data['p2s'] = ''
         self.jwk = jwk.construct(self.jwk_data, algorithm=jwk.ALGORITHMS.RS256)
@@ -46,9 +48,7 @@ class Wallet(object):
         self.owner = self.jwk_data.get('n')
         self.address = owner_to_address(self.owner)
 
-        self.api_url = API_URL
-
-    def __init__(self, jwk_file='jwk_file.json'):
+    def init_by_jwk_file(self, jwk_file='jwk_file.json'):
         with open(jwk_file, 'r') as j_file:
             self.jwk_data = json.loads(j_file.read())
         self._set_jwk_params()
